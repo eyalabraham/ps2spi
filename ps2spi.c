@@ -131,7 +131,7 @@
 #define     PS2_SCAN_CAPS   0x3a        // Caps lock scan code
 #define     PS2_SCAN_SCROLL 0x46        // Scroll lock scan code
 #define     PS2_SCAN_NUM    0x45        // Num lock scan code
-#define     PS2_SCAN_BREAK  0x54        // Fake scan code for Brea/Pause key
+#define     PS2_LAST_CODE   0x50        // Last (largest scan code)
 
 /****************************************************************************
   Types
@@ -244,18 +244,17 @@ int main(void)
          * Handle 'E0' modifier for keypad by removing the 'E0' which
          * will effectively reduce any keyboard to one that is equivalent to an 83 key keyboard.
          * Discard PrtScrn E0,2A,E0,37 and E0,B7,E0,AA; no support print screen.
-         * Convert E1 sequence of Pause/Break to scan code 54h/84
+         * Discard E1 sequence of Pause/Break
          */
         if  ( scan_code != -1 )
         {
             // Handle 'E1' scan code case for Pause/Break key
-            // Translate sequence E1,1D,45,E1,9D,C5 to code 0x54
             if ( scan_code == 0xe1 )
             {
                 // Get the next byte
                 scan_code = ps2_recv_x();
 
-                // If it is a Pause/Break key sequence then convert it
+                // Get the next byte and discard sequence
                 if ( scan_code == 0x1d )
                 {
                     ps2_recv_x();
@@ -264,7 +263,7 @@ int main(void)
                 else if ( scan_code == 0x9d )
                 {
                     ps2_recv_x();
-                    scan_code = PS2_SCAN_BREAK;
+                    continue;
                 }
             }
 
@@ -295,7 +294,6 @@ int main(void)
             // Remove unwanted scan codes
             switch ( scan_code & 0x7f )
             {
-                case 1:         // ESC
                 case 15:        // Tab
                 case 27:        // ]
                 case 29:        // L-Ctrl, R-Ctrl
@@ -321,7 +319,7 @@ int main(void)
                     break;
             }
 
-            if  ( ((uint8_t)scan_code & 0x7f) > PS2_SCAN_BREAK || scan_code == 0 )
+            if  ( ((uint8_t)scan_code & 0x7f) > PS2_LAST_CODE || scan_code == 0 )
             {
                 continue;
             }
@@ -329,12 +327,6 @@ int main(void)
             /* Store processed scan code in the key code output buffer 'key_codes[]'
              */
             write_key(scan_code);
-
-            /* Force a break code for the BREAK key,
-             * otherwise Dragon computer locks
-             */
-            if ( scan_code == PS2_SCAN_BREAK )
-                write_key((scan_code | 0x80));
 
             // TODO: Handle commands from the host Raspberry Pi
             //       Test variable 'command_in'
